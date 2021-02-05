@@ -145,7 +145,7 @@ class AlertLogicCLI(object):
                 f" alsdkdefs/{alsdkdefs_version}",
                 "Alert Logic CLI Utility",
                 prog="alcli")
-        
+
         # Add Global Options
         parser.add_argument('--access_key_id', dest='access_key_id', default=None)
         parser.add_argument('--secret_key', dest='secret_key', default=None)
@@ -154,6 +154,8 @@ class AlertLogicCLI(object):
         parser.add_argument('--global_endpoint', dest='global_endpoint', default=None, choices=Region.list_endpoints())
         parser.add_argument('--query', dest='query', default=None)
         parser.add_argument('--debug', dest='debug', default=False, action="store_true")
+        parser.add_argument('--code_skeleton', dest="code_skeleton", default=False, action="store_true",
+                             help="Generate Python skeleton instead of executing command")
         return parser
 
     @staticmethod
@@ -196,11 +198,30 @@ class ServiceOperation(object):
         if operation:
             # Remove optional arguments that haven't been supplied
             op_args = {k:self._encode(operation, k, v) for (k,v) in kwargs.items() if v is not None}
+
+            if self.args.code_skeleton:
+                print(self.create_skeleton(operation_name, op_args))
+                return
+
             res = operation(**op_args)
             try:
                 self._print_result(res.json(), parsed_globals.query)
             except json.decoder.JSONDecodeError:
                 print(f'HTTP Status Code: {res.status_code}\n{res.text}')
+
+    def code_skeleton(self, op, args):
+        service = self.name
+        args_str = ", ".join(f"{key}={value}" for key, value in args.items())
+        skeleton = f'''
+import almdrlib
+        
+{service} = almdrlib.client('{service}')
+result = {service}.{op}({args_str})
+json = result.json()
+print (json)
+        '''
+
+        return skeleton
 
     def get_service_api(self, service_name):
         return Session.get_service_api(service_name=service_name)
